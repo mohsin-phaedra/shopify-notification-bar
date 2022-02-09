@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/@shopify/polaris@4.25.0/styles.min.css"
+    />
+  <script>
+      document.addEventListener("DOMContentLoaded", async function () {
+
+
+          var SessionToken = window["app-bridge"].actions.SessionToken
+          var app = window.app;
+
+          app.dispatch(
+              SessionToken.request(),
+          );
+
+          // Save a session token for future requests
+          window.sessionToken = await new Promise((resolve) => {
+              app.subscribe(SessionToken.Action.RESPOND, (data) => {
+                  resolve(data.sessionToken || "");
+              });
+          });
+
+
+          var fetchProducts = function () {
+              var headers = new Headers({"Authorization": "Bearer " + window.sessionToken});
+              return fetch("/products", {headers})
+                  .then(response => response.json())
+                  .then(data => {
+                      var products = data.products;
+
+                      if (products === undefined || products.length == 0) {
+                          document.getElementById("products").innerHTML = "<br>No products to display.";
+                      } else {
+                          var list = "";
+                          products.forEach((product) => {
+                              var link = `<a target="_top" href="https://<%= @shop_origin %>/admin/products/${product.id}">`
+                              list += "<li>" + link + product.title + "</a></li>";
+                          });
+                          document.getElementById("products").innerHTML = "<ul>" + list + "</ul>";
+                      }
+                  });
+          }();
+
+          var fetchNotifications = function () {
+              return fetch("/get_notification?shop_domain=<%= @shop_origin %>", {
+                  headers: {
+                      'Content-Type': 'application/json',
+                      "Authorization": "Bearer " + window.sessionToken
+                  }
+              })
+                  .then(response => response.json())
+                  .then(data => {
+                      var notification = data.notification;
+                      document.getElementById("title").value = notification.title;
+                      document.getElementById("color").value = notification.color;
+                      document.getElementById("background_color").value = notification.background_color;
+                  });
+          }();
+      });
+  </script>
+</head>
+<body>
+
+<h2>Products</h2>
+<div id="products"><br>Loading...</div>
+
+<div id="notifications">
+  <form action="/post_notification" method="post">
+    <label for="fname">Title:</label><br>
+    <input type="text" id="title" name="title"><br>
+    <label for="lname">Color:</label><br>
+    <input type="color" id="color" name="color"><br><br>
+    <label for="lname">Bg Color:</label><br>
+    <input type="color" id="background_color" name="background_color"><br><br>
+    <input type="hidden" name="shop_domain" value="<%= @shop_origin %>">
+    <input type="submit" value="Submit">
+  </form>
+</div>
+
+<h2>Webhooks</h2>
+
+<% if @webhooks.present? %>
+  <ul>
+    <% @webhooks.each do |webhook| %>
+      <li><%= webhook.topic %> : <%= webhook.address %></li>
+    <% end %>
+  </ul>
+<% else %>
+  <p>This app has not created any webhooks for this Shop. Add webhooks to your ShopifyApp initializer if you need
+    webhooks</p>
+<% end %>
+</body>
+</html>
